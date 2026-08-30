@@ -62,3 +62,25 @@ $("#fetch-btn").addEventListener("click", async () => {
     out.textContent = "fetch failed: " + err;
   }
 });
+
+const imageFiles = ["img/photo.jpg", "img/pixel.png", "img/photo.webp", "img/anim.gif", "img/photo.svg"];
+(async () => {
+  const lines = ["checking " + imageFiles.length + " images..."];
+  for (const file of imageFiles) {
+    try {
+      const res = await fetch(file);
+      const expected = {
+        "img/photo.jpg": "image/jpeg",
+        "img/pixel.png": "image/png",
+        "img/photo.webp": "image/webp",
+        "img/anim.gif": "image/gif",
+        "img/photo.svg": "image/svg+xml",
+      };
+      const got = (res.headers.get("content-type") || "").split(";")[0].trim();
+      lines.push(file + ": " + res.status + (got === expected[file] ? " OK " : " BAD(" + got + ")"));
+    } catch (err) {
+      lines.push(file + ": FETCH FAILED " + err);
+    }
+  }
+  $("#image-check").innerHTML = lines.join("<br>");
+})();

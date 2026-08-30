@@ -70,21 +70,20 @@ fn handle_client(mut stream: TcpStream) {
     }
     let body = maybe.unwrap();
 
-    let response = format!(
+    let response_header = format!(
         "HTTP/1.1 200 OK\r\n\
             Content-Length: {}\r\n\
             Content-Type: {}\r\n\
             Connection: close\r\n\
-            \r\n\
-            {}",
+            \r\n",
         body.len(),
         get_type(path.as_path()),
-        str::from_utf8(&body).unwrap_or(""),
     );
 
-    stream.write_all(response.as_bytes()).unwrap();
+    let _ = stream.write_all(response_header.as_bytes()).unwrap();
+    let _ = stream.write_all(&body);
     stream.flush().unwrap();
-    println!("Sent response: {response}");
+    println!("Sent response, header: {response_header}");
 }
 fn get_type(path: &Path) -> &'static str {
     match path.extension().and_then(|ext| ext.to_str()) {
@@ -92,7 +91,15 @@ fn get_type(path: &Path) -> &'static str {
         Some("css") => "text/css",
         Some("js") => "application/javascript",
         Some("json") => "application/json",
-        Some("txt") | _ => "text/plain",
+        Some("txt") => "text/plain",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("svg") => "image/svg+xml",
+        Some("pdf") => "application/pdf",
+        Some("zip") => "application/zip",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
     }
 }
 

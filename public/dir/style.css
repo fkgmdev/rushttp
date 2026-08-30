@@ -137,6 +137,33 @@ input:focus, textarea:focus {
   min-height: 3rem;
 }
 
+.image-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.image-row figure {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: var(--bg);
+  text-align: center;
+}
+
+.image-row img {
+  display: block;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.image-row figcaption {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

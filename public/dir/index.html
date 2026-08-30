@@ -34,6 +34,19 @@
     </section>
 
     <section class="card">
+      <h2>Image Serving Test</h2>
+      <p>Each image below must come back with the correct Content-Type and intact bytes. The GIF is animated.</p>
+      <div class="image-row">
+        <figure><img src="img/photo.jpg" alt="test jpeg image"><figcaption>photo.jpg</figcaption></figure>
+        <figure><img src="img/pixel.png" alt="test png image"><figcaption>pixel.png</figcaption></figure>
+        <figure><img src="img/photo.webp" alt="test webp image"><figcaption>photo.webp</figcaption></figure>
+        <figure><img src="img/anim.gif" alt="test animated gif"><figcaption>anim.gif</figcaption></figure>
+        <figure><img src="img/photo.svg" alt="test svg image"><figcaption>photo.svg</figcaption></figure>
+      </div>
+      <p class="muted" id="image-check">checking image headers via fetch...</p>
+    </section>
+
+    <section class="card">
       <h2>JavaScript + DOM Test</h2>
       <p class="muted" data-demo>Click a button to see live DOM updates and counters.</p>
       <div class="button-row">
@@ -65,6 +78,11 @@
           <tr><td>HTML</td><td><a href="index.html">/dir/index.html</a></td></tr>
           <tr><td>CSS</td><td><a href="style.css">/dir/style.css</a></td></tr>
           <tr><td>JS</td><td><a href="script.js">/dir/script.js</a></td></tr>
+          <tr><td>PNG</td><td><a href="img/pixel.png">/dir/img/pixel.png</a></td></tr>
+          <tr><td>JPG</td><td><a href="img/photo.jpg">/dir/img/photo.jpg</a></td></tr>
+          <tr><td>GIF</td><td><a href="img/anim.gif">/dir/img/anim.gif</a></td></tr>
+          <tr><td>WEBP</td><td><a href="img/photo.webp">/dir/img/photo.webp</a></td></tr>
+          <tr><td>SVG</td><td><a href="img/photo.svg">/dir/img/photo.svg</a></td></tr>
           <tr><td>JSON</td><td><a href="info.json">/dir/info.json</a></td></tr>
         </tbody>
       </table>
