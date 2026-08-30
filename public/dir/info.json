@@ -1,0 +1,1 @@
+{ "app": "rushttp test page", "endpoint": "/dir/info.json", "method": "GET", "server": "rust http server", "time_utc": "2026-08-30T00:00:00Z", "checklist": [ "static html", "css", "javascript", "images", "json", "forms", "ajax" ] }

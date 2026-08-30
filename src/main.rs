@@ -3,7 +3,7 @@ use std::{
     fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str,
 };
 
@@ -32,27 +32,37 @@ fn handle_client(mut stream: TcpStream) {
         return;
     }
     let method = parts[0];
-    let path = PathBuf::from(
-        "public/".to_string()
-            + parts[1]
-                .split("/")
-                .filter(|part| !part.is_empty() && *part != "." && *part != "..")
-                .collect::<Vec<&str>>()
-                .join("")
-                .as_str(),
-    );
+    let raw_path = parts[1];
+    let clean = raw_path
+        .split('/')
+        .filter(|part| !part.is_empty() && *part != "." && *part != "..")
+        .collect::<Vec<&str>>()
+        .join("/");
+    let mut path = PathBuf::from("public/").join(&clean);
+    if path.is_dir() {
+        if !raw_path.ends_with('/') {
+            let redirect = format!("{raw_path}/");
+            let response = format!(
+                "HTTP/1.1 301 Moved Permanently\r\n\
+                    Location: {redirect}\r\n\
+                    Content-Length: 0\r\n\
+                    Connection: close\r\n\
+                    \r\n"
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+            stream.flush().unwrap();
+            println!("Redirecting to: {redirect}");
+            return;
+        }
+        path = path.join("index.html");
+    }
     let version = parts[2];
-    let path = if path.is_dir() {
-        path.join("index.html")
-    } else {
-        path
-    };
     println!("Request: {method} {} {version}", path.display());
     if !path.exists() {
         let _ = stream.write_all(neg_reply(BadReq::NotFound).as_bytes());
         return;
     }
-    let maybe = fs::read_to_string(path);
+    let maybe = fs::read(&path);
 
     if maybe.is_err() {
         let _ = stream.write_all(neg_reply(BadReq::ServerError).as_bytes());
@@ -63,17 +73,27 @@ fn handle_client(mut stream: TcpStream) {
     let response = format!(
         "HTTP/1.1 200 OK\r\n\
             Content-Length: {}\r\n\
-            Content-Type: text/plain\r\n\
+            Content-Type: {}\r\n\
             Connection: close\r\n\
             \r\n\
             {}",
         body.len(),
-        body
+        get_type(path.as_path()),
+        str::from_utf8(&body).unwrap_or(""),
     );
 
     stream.write_all(response.as_bytes()).unwrap();
     stream.flush().unwrap();
     println!("Sent response: {response}");
+}
+fn get_type(path: &Path) -> &'static str {
+    match path.extension().and_then(|ext| ext.to_str()) {
+        Some("html") | Some("htm") => "text/html",
+        Some("css") => "text/css",
+        Some("js") => "application/javascript",
+        Some("json") => "application/json",
+        Some("txt") | _ => "text/plain",
+    }
 }
 
 fn neg_reply(messup: BadReq) -> String {
@@ -88,7 +108,7 @@ fn neg_reply(messup: BadReq) -> String {
 }
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
+    let listener = TcpListener::bind("0.0.0.0:8080").unwrap();
     println!("listening");
     for stream in listener.incoming() {
         match stream {

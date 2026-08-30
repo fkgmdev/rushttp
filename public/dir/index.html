@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTTP Server Test Page</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <header>
+    <h1>HTTP Server Test Page</h1>
+    <p class="tagline">This page is served by your Rust HTTP server. If you can see this, static hosting works.</p>
+  </header>
+
+  <main>
+    <section id="assets-visibility-result" class="card">
+      <h2>Test Results</h2>
+      <p id="js-check">checking for script.js...</p>
+      <p id="css-check">checking for style.css...</p>
+      <p class="muted" id="feature-detection">detecting browser features...</p>
+    </section>
+
+    <section class="card">
+      <h2>Link / Routing Test</h2>
+      <p>These links exercise different routes of the server:</p>
+      <div class="button-row">
+        <a class="btn btn-primary" href="/">Root link</a>
+        <a class="btn btn-secondary" href="/dir/">Directory index</a>
+        <a class="btn" href="/dir/style.css">Raw CSS file</a>
+        <a class="btn" href="/dir/script.js">Raw JS file</a>
+        <a class="btn btn-danger" href="/this-page-does-not-exist" target="_blank">404 page</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>JavaScript + DOM Test</h2>
+      <p class="muted" data-demo>Click a button to see live DOM updates and counters.</p>
+      <div class="button-row">
+        <button id="click-counter-btn" class="btn btn-success">Click me</button>
+        <button id="add-box-btn" class="btn">Add a box</button>
+        <button id="random-bg-btn" class="btn">Random background</button>
+        <button id="clear-boxes-btn" class="btn btn-danger">Clear boxes</button>
+      </div>
+      <p>Click count: <strong id="click-count">0</strong></p>
+    </section>
+
+    <section class="card">
+      <h2>Fetch (AJAX) Test</h2>
+      <p>Fetches <code>/dir/info.json</code> from the server asynchronously.</p>
+      <div class="button-row">
+        <button id="fetch-btn" class="btn btn-warning">Fetch info.json</button>
+      </div>
+      <pre id="fetch-result" class="result-field">result shown here</pre>
+    </section>
+
+    <section class="card">
+      <h2>MIME Type Check</h2>
+      <p class="muted">Each of these should get a correct Content-Type header:</p>
+      <table class="table">
+        <thead>
+          <tr><th>Type</th><th>URL</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>HTML</td><td><a href="index.html">/dir/index.html</a></td></tr>
+          <tr><td>CSS</td><td><a href="style.css">/dir/style.css</a></td></tr>
+          <tr><td>JS</td><td><a href="script.js">/dir/script.js</a></td></tr>
+          <tr><td>JSON</td><td><a href="info.json">/dir/info.json</a></td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <p class="muted">Test page rendered at <span id="timestamp">unknown</span></p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
