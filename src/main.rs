@@ -1,4 +1,5 @@
 #![allow(clippy::all)]
+use core::fmt;
 use std::{
     fs,
     io::{Read, Write},
@@ -6,11 +7,82 @@ use std::{
     path::{Path, PathBuf},
     str,
 };
-
+#[derive(Debug)]
 enum BadReq {
     NotFound,
     BadRequest,
     ServerError,
+}
+
+impl fmt::Display for BadReq {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let msg = match self {
+            BadReq::NotFound => "404 not found",
+            BadReq::BadRequest => "400 bad request",
+            BadReq::ServerError => "500 internal server error",
+        };
+        write!(f, "{msg}")
+    }
+}
+impl std::error::Error for BadReq {}
+enum HttpMethod {
+    GET,
+    POST,
+}
+trait ToHttpMethod {
+    fn whatmethod(&self) -> Result<HttpMethod, BadReq>;
+}
+
+impl ToHttpMethod for str {
+    fn whatmethod(&self) -> Result<HttpMethod, BadReq> {
+        match self.to_uppercase().as_str() {
+            "GET" => Ok(HttpMethod::GET),
+            "POST" => Ok(HttpMethod::POST),
+            _ => Err(BadReq::BadRequest),
+        }
+    }
+}
+
+trait ToDisplay {
+    fn getdisplay(&self) -> &str;
+}
+
+impl ToDisplay for HttpMethod {
+    fn getdisplay(&self) -> &str {
+        match self {
+            HttpMethod::GET => "GET",
+            HttpMethod::POST => "POST",
+        }
+    }
+}
+
+struct Request {
+    path: PathBuf,
+    method: HttpMethod,
+}
+
+fn parse_request(req: &str) -> Result<Request, BadReq> {
+    let parts: Vec<&str> = req
+        .lines()
+        .next()
+        .unwrap_or("")
+        .split_whitespace()
+        .collect();
+    if parts.len() < 3 {
+        return Err(BadReq::BadRequest);
+    }
+    let method = parts[0].whatmethod()?;
+    let raw_path = parts[1];
+    let clean = raw_path
+        .split('/')
+        .filter(|part| !part.is_empty() && *part != "." && *part != "..")
+        .collect::<Vec<&str>>()
+        .join("/");
+    let mut path = PathBuf::from("public/").join(&clean);
+    Ok(Request {
+        path: path,
+        method: method,
+    })
 }
 
 fn handle_client(mut stream: TcpStream) {
@@ -31,7 +103,8 @@ fn handle_client(mut stream: TcpStream) {
         let _ = stream.write_all(neg_reply(BadReq::BadRequest).as_bytes());
         return;
     }
-    let method = parts[0];
+    // TEMPORARY FIX, CHANGE ASAP!!!!!!
+    let method = parts[0].whatmethod().unwrap_or(HttpMethod::GET);
     let raw_path = parts[1];
     let clean = raw_path
         .split('/')
@@ -57,7 +130,11 @@ fn handle_client(mut stream: TcpStream) {
         path = path.join("index.html");
     }
     let version = parts[2];
-    println!("Request: {method} {} {version}", path.display());
+    println!(
+        "Request: {} {} {version}",
+        method.getdisplay(),
+        path.display()
+    );
     if !path.exists() {
         let _ = stream.write_all(neg_reply(BadReq::NotFound).as_bytes());
         return;
