@@ -59,6 +59,7 @@ impl ToDisplay for HttpMethod {
 struct Request {
     path: PathBuf,
     method: HttpMethod,
+    version: String,
 }
 
 fn parse_request(req: &str) -> Result<Request, BadReq> {
@@ -78,43 +79,46 @@ fn parse_request(req: &str) -> Result<Request, BadReq> {
         .filter(|part| !part.is_empty() && *part != "." && *part != "..")
         .collect::<Vec<&str>>()
         .join("/");
-    let mut path = PathBuf::from("public/").join(&clean);
+    let path = PathBuf::from("public/").join(&clean);
     Ok(Request {
         path: path,
         method: method,
+        version: parts[2].to_owned(),
     })
 }
-
 fn handle_client(mut stream: TcpStream) {
-    let mut buffer = [0; 4096];
-    if stream.read(&mut buffer).is_err() {
-        let _ = stream.write_all(neg_reply(BadReq::ServerError).as_bytes());
-        return;
-    }
+    match handle_client_inner(&mut stream) {
+        Ok(reply) => {
+            let (header, body) = reply;
+            let _ = stream.write_all(header.as_bytes());
+            if let Some(contents) = body {
+                let _ = stream.write_all(&contents);
+            }
+        }
+        Err(e) => {
+            let _ = stream.write_all(neg_reply(e).as_bytes());
+        }
+    };
+}
 
-    let req = str::from_utf8(&buffer).unwrap();
-    let parts: Vec<&str> = req
-        .lines()
-        .next()
-        .unwrap_or("")
-        .split_whitespace()
-        .collect();
-    if parts.len() < 3 {
-        let _ = stream.write_all(neg_reply(BadReq::BadRequest).as_bytes());
-        return;
-    }
-    // TEMPORARY FIX, CHANGE ASAP!!!!!!
-    let method = parts[0].whatmethod().unwrap_or(HttpMethod::GET);
-    let raw_path = parts[1];
-    let clean = raw_path
+fn handle_client_inner(stream: &mut TcpStream) -> Result<(String, Option<Vec<u8>>), BadReq> {
+    let mut buffer = [0; 4096];
+    stream.read(&mut buffer).map_err(|_| BadReq::ServerError)?;
+
+    let req = parse_request(str::from_utf8(&buffer).map_err(|_| BadReq::ServerError)?)?;
+
+    let clean = req
+        .path
+        .to_str()
+        .unwrap()
         .split('/')
         .filter(|part| !part.is_empty() && *part != "." && *part != "..")
         .collect::<Vec<&str>>()
         .join("/");
     let mut path = PathBuf::from("public/").join(&clean);
     if path.is_dir() {
-        if !raw_path.ends_with('/') {
-            let redirect = format!("{raw_path}/");
+        if !req.path.to_str().unwrap().ends_with('/') {
+            let redirect = format!("{}/", req.path.display());
             let response = format!(
                 "HTTP/1.1 301 Moved Permanently\r\n\
                     Location: {redirect}\r\n\
@@ -122,32 +126,24 @@ fn handle_client(mut stream: TcpStream) {
                     Connection: close\r\n\
                     \r\n"
             );
-            stream.write_all(response.as_bytes()).unwrap();
-            stream.flush().unwrap();
-            println!("Redirecting to: {redirect}");
-            return;
+            return Ok((response, None));
         }
         path = path.join("index.html");
     }
-    let version = parts[2];
     println!(
-        "Request: {} {} {version}",
-        method.getdisplay(),
-        path.display()
+        "Request: {} {} {}",
+        req.method.getdisplay(),
+        path.display(),
+        req.version,
     );
     if !path.exists() {
-        let _ = stream.write_all(neg_reply(BadReq::NotFound).as_bytes());
-        return;
+        return Err(BadReq::NotFound);
     }
     let maybe = fs::read(&path);
 
-    if maybe.is_err() {
-        let _ = stream.write_all(neg_reply(BadReq::ServerError).as_bytes());
-        return;
-    }
-    let body = maybe.unwrap();
+    let body = maybe.map_err(|_| BadReq::ServerError)?;
 
-    let response_header = format!(
+    let reply = format!(
         "HTTP/1.1 200 OK\r\n\
             Content-Length: {}\r\n\
             Content-Type: {}\r\n\
@@ -156,11 +152,7 @@ fn handle_client(mut stream: TcpStream) {
         body.len(),
         get_type(path.as_path()),
     );
-
-    let _ = stream.write_all(response_header.as_bytes()).unwrap();
-    let _ = stream.write_all(&body);
-    stream.flush().unwrap();
-    println!("Sent response, header: {response_header}");
+    Ok((reply, Some(body)))
 }
 fn get_type(path: &Path) -> &'static str {
     match path.extension().and_then(|ext| ext.to_str()) {
