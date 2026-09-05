@@ -7,11 +7,11 @@ use std::{
     path::{Path, PathBuf},
     str,
 };
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum BadReq {
     NotFound,
     BadRequest,
-    ServerError,
+    ServerError(String),
 }
 
 impl fmt::Display for BadReq {
@@ -19,7 +19,7 @@ impl fmt::Display for BadReq {
         let msg = match self {
             BadReq::NotFound => "404 not found",
             BadReq::BadRequest => "400 bad request",
-            BadReq::ServerError => "500 internal server error",
+            BadReq::ServerError(msg) => &format!("500: {msg}"),
         };
         write!(f, "{msg}")
     }
@@ -58,6 +58,8 @@ impl ToDisplay for HttpMethod {
 
 struct Request {
     path: PathBuf,
+    subpath: String,
+    trailing_slash: bool,
     method: HttpMethod,
     version: String,
 }
@@ -82,6 +84,8 @@ fn parse_request(req: &str) -> Result<Request, BadReq> {
     let path = PathBuf::from("public/").join(&clean);
     Ok(Request {
         path: path,
+        subpath: "/".to_string() + &clean,
+        trailing_slash: raw_path.ends_with("/"),
         method: method,
         version: parts[2].to_owned(),
     })
@@ -96,29 +100,32 @@ fn handle_client(mut stream: TcpStream) {
             }
         }
         Err(e) => {
-            let _ = stream.write_all(neg_reply(e).as_bytes());
+            let _ = stream.write_all(neg_reply(&e).as_bytes());
+            eprintln!("Error: {e:?}");
         }
     };
 }
 
 fn handle_client_inner(stream: &mut TcpStream) -> Result<(String, Option<Vec<u8>>), BadReq> {
     let mut buffer = [0; 4096];
-    stream.read(&mut buffer).map_err(|_| BadReq::ServerError)?;
+    stream
+        .read(&mut buffer)
+        .map_err(|_| BadReq::ServerError("stream read error".to_string()))?;
+    println!(
+        "Request: {}",
+        str::from_utf8(&buffer)
+            .unwrap_or("")
+            .lines()
+            .nth(0)
+            .unwrap()
+    );
+    let mut req = parse_request(
+        str::from_utf8(&buffer).map_err(|_| BadReq::ServerError("couldnt parse".to_string()))?,
+    )?;
 
-    let req = parse_request(str::from_utf8(&buffer).map_err(|_| BadReq::ServerError)?)?;
-
-    let clean = req
-        .path
-        .to_str()
-        .unwrap()
-        .split('/')
-        .filter(|part| !part.is_empty() && *part != "." && *part != "..")
-        .collect::<Vec<&str>>()
-        .join("/");
-    let mut path = PathBuf::from("public/").join(&clean);
-    if path.is_dir() {
-        if !req.path.to_str().unwrap().ends_with('/') {
-            let redirect = format!("{}/", req.path.display());
+    if req.path.is_dir() {
+        if !req.trailing_slash {
+            let redirect = format!("{}/", req.subpath);
             let response = format!(
                 "HTTP/1.1 301 Moved Permanently\r\n\
                     Location: {redirect}\r\n\
@@ -128,20 +135,20 @@ fn handle_client_inner(stream: &mut TcpStream) -> Result<(String, Option<Vec<u8>
             );
             return Ok((response, None));
         }
-        path = path.join("index.html");
+        req.path = req.path.join("index.html");
     }
     println!(
         "Request: {} {} {}",
         req.method.getdisplay(),
-        path.display(),
+        req.path.display(),
         req.version,
     );
-    if !path.exists() {
+    if !req.path.exists() {
         return Err(BadReq::NotFound);
     }
-    let maybe = fs::read(&path);
+    let maybe = fs::read(&req.path);
 
-    let body = maybe.map_err(|_| BadReq::ServerError)?;
+    let body = maybe.map_err(|_| BadReq::ServerError("fs read unwrap error".to_string()))?;
 
     let reply = format!(
         "HTTP/1.1 200 OK\r\n\
@@ -150,7 +157,7 @@ fn handle_client_inner(stream: &mut TcpStream) -> Result<(String, Option<Vec<u8>
             Connection: close\r\n\
             \r\n",
         body.len(),
-        get_type(path.as_path()),
+        get_type(&req.path),
     );
     Ok((reply, Some(body)))
 }
@@ -172,11 +179,11 @@ fn get_type(path: &Path) -> &'static str {
     }
 }
 
-fn neg_reply(messup: BadReq) -> String {
+fn neg_reply(messup: &BadReq) -> String {
     let status_str = match messup {
         BadReq::NotFound => "404 Not Found",
         BadReq::BadRequest => "400 Bad Request",
-        BadReq::ServerError => "500 Internal Server Error",
+        BadReq::ServerError(_) => "500 Internal Server Error",
     };
     let response = format!("HTTP/1.1 {status_str}\r\nContent-Length: 0\r\n\r\n");
     println!("Sending bad reply: {response}");
